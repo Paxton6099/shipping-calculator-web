@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海运平仓时间计算器 (简易版)</title>
+    <style>
+        /* --- CSS 样式部分 --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .calculator-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h2 {
+            text-align: center;
+            color: #007bff;
+            margin-bottom: 25px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="datetime-local"],
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box; /* 确保 padding 不影响宽度 */
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1e7e34;
+        }
+        .results-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-top: 2px solid #eee;
+        }
+        h3 {
+            color: #007bff;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+        }
+        .result-label {
+            font-weight: 600;
+            color: #555;
+        }
+        #result-cy {
+            font-weight: bold;
+            color: #dc3545; /* 红色突出显示平仓时间 */
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="calculator-container">
+    <h2>海运平仓时间计算器 (简易版)</h2>
+    
+    <div class="input-section">
+        <div class="input-group">
+            <label for="carrier-name">船司名称 (可选):</label>
+            <input type="text" id="carrier-name" placeholder="例如：COSCO, MSK">
+        </div>
+
+        <div class="input-group">
+            <label for="cutoff-date">1. 截关时间 (Customs Cut-off):</label>
+            <input type="datetime-local" id="cutoff-date" required>
+        </div>
+
+        <div class="input-group">
+            <label for="cy-advance">2. 平仓提前量 (小时, 默认8):</label>
+            <input type="number" id="cy-advance" value="8" min="1" required>
+        </div>
+        
+        <div class="input-group">
+            <label for="pickup-advance">3. 最早提箱提前量 (小时, 默认24):</label>
+            <input type="number" id="pickup-advance" value="24" min="1" required>
+        </div>
+
+        <div class="input-group">
+            <label for="loading-time">4. 装货与运输总预留时间 (小时, 默认4):</label>
+            <input type="number" id="loading-time" value="4" min="1" required>
+            <small style="color:#6c757d;">(包含从工厂到堆场的运输时间和装货操作时间)</small>
+        </div>
+        
+        <button onclick="calculateTimes()">开始计算</button>
+    </div>
+    
+    <div class="results-section">
+        <h3>计算结果</h3>
+        <div class="result-item">
+            <span class="result-label">⚓ 截关时间 (基准):</span>
+            <span id="result-cutoff">--</span>
+        </div>
+        <div class="result-item">
+            <span class="result-label">🚢 平仓时间 (CY Cut-off):</span>
+            <span id="result-cy">--</span>
+        </div>
+        <div class="result-item">
+            <span class="result-label">📦 最早提箱时间:</span>
+            <span id="result-pickup">--</span>
+        </div>
+        <div class="result-item">
+            <span class="result-label">🚚 建议出厂时间:</span>
+            <span id="result-factory-exit">--</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- JavaScript 逻辑部分 ---
+
+    /**
+     * 格式化 Date 对象为 YYYY-MM-DD HH:MM
+     * @param {Date} date - 要格式化的日期对象
+     * @returns {string} 格式化后的时间字符串
+     */
+    function formatDateTime(date) {
+        if (!date || isNaN(date.getTime())) {
+            return '--';
+        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
+
+    function calculateTimes() {
+        // 1. 获取输入值
+        const cutoffDateTimeStr = document.getElementById('cutoff-date').value;
+        const cyAdvanceHours = parseFloat(document.getElementById('cy-advance').value);
+        const pickupAdvanceHours = parseFloat(document.getElementById('pickup-advance').value);
+        const loadingTotalHours = parseFloat(document.getElementById('loading-time').value);
+
+        // 2. 验证输入
+        if (!cutoffDateTimeStr) {
+            alert("请选择截关日期和时间！");
+            return;
+        }
+        if (isNaN(cyAdvanceHours) || cyAdvanceHours < 1 || isNaN(pickupAdvanceHours) || pickupAdvanceHours < 1 || isNaN(loadingTotalHours) || loadingTotalHours < 1) {
+            alert("提前量和预留时间必须输入有效的正整数（小时）！");
+            return;
+        }
+
+        // 创建 Date 对象。注意：datetime-local 输入会返回 YYYY-MM-DDTHH:MM 格式
+        const customsCutoff = new Date(cutoffDateTimeStr);
+
+        // 检查 Date 对象是否有效
+        if (isNaN(customsCutoff.getTime())) {
+             alert("输入的日期或时间格式无效，请检查！");
+             return;
+        }
+
+        // 3. 执行核心计算（毫秒级别操作）
+
+        // 将小时数转换为毫秒
+        const MS_PER_HOUR = 60 * 60 * 1000;
+        
+        // 计算平仓时间 (CY Cut-off)
+        const cyCutoffMs = customsCutoff.getTime() - (cyAdvanceHours * MS_PER_HOUR);
+        const cyCutoff = new Date(cyCutoffMs);
+
+        // 计算最早提箱时间
+        const earliestPickupMs = customsCutoff.getTime() - (pickupAdvanceHours * MS_PER_HOUR);
+        const earliestPickup = new Date(earliestPickupMs);
+
+        // 计算建议出厂时间 (基于平仓时间倒推)
+        // 建议出厂时间 = 平仓时间 - 装货与运输总预留时间
+        const factoryExitMs = cyCutoffMs - (loadingTotalHours * MS_PER_HOUR);
+        const factoryExit = new Date(factoryExitMs);
+        
+        // 4. 展示结果
+        document.getElementById('result-cutoff').textContent = formatDateTime(customsCutoff);
+        document.getElementById('result-cy').textContent = formatDateTime(cyCutoff);
+        document.getElementById('result-pickup').textContent = formatDateTime(earliestPickup);
+        document.getElementById('result-factory-exit').textContent = formatDateTime(factoryExit);
+    }
+
+    // 初始化：设置当前时间和默认值，方便用户使用
+    document.addEventListener('DOMContentLoaded', () => {
+        // 设置默认截关时间为当前时间 + 48小时（便于测试）
+        const now = new Date();
+        now.setDate(now.getDate() + 2); 
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        
+        document.getElementById('cutoff-date').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        
+        // 可选：立即运行一次计算 (如果用户没有修改默认值)
+        // calculateTimes();
+    });
+</script>
+
+</body>
+</html>
